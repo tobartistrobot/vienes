@@ -326,3 +326,7 @@ details summary { cursor: pointer; font-weight: 700; padding: 8px 0; }
 .instpop img { border-radius: 16px; }
 .instpop ol { text-align: left; padding-left: 22px; display: grid; gap: 8px; font-size: 15.5px; }
 .instpop .btn { width: 100%; }
+/* Hueco para la barra de estado del móvil cuando se abre como app instalada */
+.top { padding-top: calc(10px + env(safe-area-inset-top, 0px)); }
+.gate, .match { padding-top: env(safe-area-inset-top, 0px); }
+.sheet-in { max-height: min(94dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 8px)); }
