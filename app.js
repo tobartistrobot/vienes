@@ -519,7 +519,7 @@
     sheetEl.innerHTML = '<div class="sheet-in" role="dialog" aria-modal="true"><div class="sheet-bar"><button class="x" data-act="close" aria-label="Cerrar">×</button></div>' + html + '</div>';
     sheetEl.hidden = false; document.body.style.overflow = 'hidden';
   }
-  function closeSheet() { sheetEl.hidden = true; sheetEl.innerHTML = ''; document.body.style.overflow = ''; F.pid = null; S.person = null; }
+  function closeSheet() { instPop = false; sheetEl.hidden = true; sheetEl.innerHTML = ''; document.body.style.overflow = ''; F.pid = null; S.person = null; }
   function dayOptions(p) {
     const t = today();
     if (p.when) return p.when.filter(w => w[0] >= t && DAYS[w[0]]).map(w => ({ d: w[0], t: w[1], l: w[2] }));
@@ -686,8 +686,29 @@
       : ios ? '<p>En iPhone, con Safari: toca el botón <b>Compartir</b> (el cuadrado con la flecha) y elige <b>«Añadir a pantalla de inicio»</b>. La primera vez tendrás que entrar otra vez con tu nombre y tu PIN.</p>'
         : '<p>En Android, con Chrome: abre el menú <b>⋮</b> de arriba a la derecha y elige <b>«Instalar aplicación»</b> o <b>«Añadir a pantalla de inicio»</b>.</p>') + '</div>';
   }
-  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (S.token && S.loaded && S.tab === 'me' && !S.edit) render(); });
-  window.addEventListener('appinstalled', () => { installEvt = null; toast('App instalada.'); if (S.token && S.loaded && S.tab === 'me' && !S.edit) render(); });
+  // Ventana emergente para instalar: sale una vez por dispositivo, ya con la cuenta creada.
+  let instPop = false, instAfterIntro = false;
+  const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  function installPop(force) {
+    if (standalone() || !S.token || !S.loaded) return;
+    if (!force) {
+      if (store.get('vm_inst') || !sheetEl.hidden || !matchEl.hidden) return;
+      if (!installEvt && !isIOS() && !/Android/.test(navigator.userAgent)) return;
+    }
+    instPop = true; store.set('vm_inst', '1');
+    openSheet('<div class="pad instpop" style="padding-top:56px"><img src="icon-192.png" alt="" width="72" height="72"><h2>Instala ¿Vienes? en tu móvil</h2>' +
+      '<p class="quiet">Tendrás la app en la pantalla de inicio, con su icono, y se abrirá a pantalla completa.</p>' +
+      (installEvt ? '<button class="btn" data-act="install">Instalar la app</button>'
+        : isIOS() ? '<ol><li>Abre este enlace en <b>Safari</b>.</li><li>Toca el botón <b>Compartir</b>, el cuadrado con la flecha hacia arriba.</li><li>Elige <b>«Añadir a pantalla de inicio»</b>.</li><li>Abre la app desde el icono nuevo y entra con tu nombre y tu PIN.</li></ol>'
+          : '<ol><li>Abre el menú <b>⋮</b> de Chrome, arriba a la derecha.</li><li>Elige <b>«Instalar aplicación»</b> o <b>«Añadir a pantalla de inicio»</b>.</li></ol>') +
+      '<button class="btn ghost" data-act="close">Ahora no</button><p class="quiet" style="font-size:13px">Podrás instalarla más tarde desde «Mi cuenta».</p></div>');
+  }
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault(); installEvt = e;
+    if (instPop && !sheetEl.hidden) installPop(true); else installPop();
+    if (S.token && S.loaded && S.tab === 'me' && !S.edit) render();
+  });
+  window.addEventListener('appinstalled', () => { installEvt = null; if (instPop) closeSheet(); toast('App instalada.'); if (S.token && S.loaded && S.tab === 'me' && !S.edit) render(); });
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
   function inviteUrl() {
     const c = store.get('vm_code') || linkCode;
@@ -731,7 +752,7 @@
       case 'open': openPlace(id, !!b.dataset.form); break;
       case 'pick': renderPick(); break;
       case 'person': renderPerson(id); break;
-      case 'close': closeSheet(); break;
+      case 'close': closeSheet(); if (instAfterIntro) { instAfterIntro = false; installPop(); } break;
       case 'fday': { const n = $('#f-note'); if (n) F.note = n.value; F.sel = Number(b.dataset.i); F.hour = defaultHour(dayOptions(PBY[F.pid])[F.sel]); renderPlace(); break; }
       case 'join': meetAct('vm_join', { p_proposal: id, p_join: true }, 'Te has apuntado.'); break;
       case 'leave': meetAct('vm_join', { p_proposal: id, p_join: false }, 'Ya no vas a esa quedada.'); break;
@@ -744,7 +765,7 @@
       case 'emoji': if (S.edit) { const n = $('#p-name'); if (n) S.edit.name = n.value; S.edit.emoji = id; render(); } break;
       case 'edit': { const u = S.users[S.me]; if (u) { S.edit = { name: u.name, emoji: u.emoji, err: '', busy: false }; render(); const n = $('#p-name'); if (n) n.focus(); } break; }
       case 'edit-cancel': S.edit = null; render(); break;
-      case 'install': if (installEvt) { const ev = installEvt; installEvt = null; ev.prompt(); if (ev.userChoice) ev.userChoice.then(() => render(), () => render()); } break;
+      case 'install': if (installEvt) { const ev = installEvt; installEvt = null; if (instPop) closeSheet(); ev.prompt(); if (ev.userChoice) ev.userChoice.then(() => render(), () => render()); } break;
       case 'copy': {
         const url = inviteUrl();
         const done = () => toast('Enlace copiado. Pégalo en el grupo.');
@@ -763,7 +784,7 @@
   async function boot(isNew) {
     render();
     if (!S.token) return;
-    try { const ok = await load(); render(); if (ok && isNew) intro(); }
+    try { const ok = await load(); render(); if (ok && isNew) { instAfterIntro = true; intro(); } else if (ok) installPop(); }
     catch (e) { app.innerHTML = '<div class="wrap"><div class="empty" style="margin-top:40px"><h2>Sin conexión</h2><p>No se han podido cargar los datos. Comprueba internet.</p><button class="btn" onclick="location.reload()">Reintentar</button></div></div>'; return; }
     loadImages();
   }
