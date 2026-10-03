@@ -710,6 +710,13 @@
   });
   window.addEventListener('appinstalled', () => { installEvt = null; if (instPop) closeSheet(); toast('App instalada.'); if (S.token && S.loaded && S.tab === 'me' && !S.edit) render(); });
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+  function shareInvite() {
+    const url = inviteUrl();
+    const done = () => toast('Enlace copiado. Pégalo en el grupo.');
+    if (navigator.share) navigator.share({ title: '¿Vienes? Planes en Viena', text: 'Vota los sitios de Viena que te apetecen y mira quién quiere ir contigo.', url: url }).catch(() => {});
+    else if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, () => toast(url));
+    else toast(url);
+  }
   function inviteUrl() {
     const c = store.get('vm_code') || linkCode;
     return location.origin + location.pathname + (c ? '?c=' + encodeURIComponent(c) : '');
@@ -767,11 +774,12 @@
       case 'edit-cancel': S.edit = null; render(); break;
       case 'install': if (installEvt) { const ev = installEvt; installEvt = null; if (instPop) closeSheet(); ev.prompt(); if (ev.userChoice) ev.userChoice.then(() => render(), () => render()); } break;
       case 'copy': {
-        const url = inviteUrl();
-        const done = () => toast('Enlace copiado. Pégalo en el grupo.');
-        if (navigator.share) navigator.share({ title: '¿Vienes? Planes en Viena', text: 'Vota los sitios de Viena que te apetecen y mira quién quiere ir contigo.', url: url }).catch(() => {});
-        else if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, () => toast(url));
-        else toast(url);
+        if (!store.get('vm_code') && !linkCode) {
+          // En la app instalada no queda guardado el código del enlace: se pide al servidor.
+          rpc('vm_invite_code', { p_token: S.token }).then(r => { if (r && r.code) store.set('vm_code', r.code); }).catch(() => {}).then(() => shareInvite());
+          break;
+        }
+        shareInvite();
         break;
       }
       case 'logout': { const t = S.token; signOutLocal(); render(); rpc('vm_logout', { p_token: t }).catch(() => {}); break; }
@@ -787,6 +795,7 @@
     try { const ok = await load(); render(); if (ok && isNew) { instAfterIntro = true; intro(); } else if (ok) installPop(); }
     catch (e) { app.innerHTML = '<div class="wrap"><div class="empty" style="margin-top:40px"><h2>Sin conexión</h2><p>No se han podido cargar los datos. Comprueba internet.</p><button class="btn" onclick="location.reload()">Reintentar</button></div></div>'; return; }
     loadImages();
+    if (S.token && S.loaded && !store.get('vm_code') && !linkCode) rpc('vm_invite_code', { p_token: S.token }).then(r => { if (r && r.code) store.set('vm_code', r.code); }).catch(() => {});
   }
   if (linkCode) store.set('vm_code', linkCode);
   boot(false);
