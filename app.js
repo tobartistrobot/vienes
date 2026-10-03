@@ -683,7 +683,7 @@
     const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     return '<div class="panel"><h2>Instalar la app</h2>' + (installEvt
       ? '<p style="margin-bottom:12px">Ponla en la pantalla de inicio del móvil, con su icono, y ábrela como cualquier otra app.</p><button class="btn" data-act="install">Instalar ¿Vienes?</button>'
-      : ios ? '<p>En iPhone, con Safari: toca el botón <b>Compartir</b> (el cuadrado con la flecha) y elige <b>«Añadir a pantalla de inicio»</b>. La primera vez tendrás que entrar otra vez con tu nombre y tu PIN.</p>'
+      : ios ? '<p>En iPhone, con Safari o Chrome: toca el botón <b>Compartir</b> (el cuadrado con la flecha) y elige <b>«Añadir a pantalla de inicio»</b>. La primera vez tendrás que entrar otra vez con tu nombre y tu PIN.</p>'
         : '<p>En Android, con Chrome: abre el menú <b>⋮</b> de arriba a la derecha y elige <b>«Instalar aplicación»</b> o <b>«Añadir a pantalla de inicio»</b>.</p>') + '</div>';
   }
   // Ventana emergente para instalar: sale una vez por dispositivo, ya con la cuenta creada.
@@ -699,7 +699,7 @@
     openSheet('<div class="pad instpop" style="padding-top:56px"><img src="icon-192.png" alt="" width="72" height="72"><h2>Instala ¿Vienes? en tu móvil</h2>' +
       '<p class="quiet">Tendrás la app en la pantalla de inicio, con su icono, y se abrirá a pantalla completa.</p>' +
       (installEvt ? '<button class="btn" data-act="install">Instalar la app</button>'
-        : isIOS() ? '<ol><li>Abre este enlace en <b>Safari</b>.</li><li>Toca el botón <b>Compartir</b>, el cuadrado con la flecha hacia arriba.</li><li>Elige <b>«Añadir a pantalla de inicio»</b>.</li><li>Abre la app desde el icono nuevo y entra con tu nombre y tu PIN.</li></ol>'
+        : isIOS() ? '<ol><li>Toca el botón <b>Compartir</b>, el cuadrado con la flecha hacia arriba. En Safari está abajo; en Chrome, arriba junto a la dirección.</li><li>Elige <b>«Añadir a pantalla de inicio»</b>.</li><li>Abre la app desde el icono nuevo y entra con tu nombre y tu PIN.</li></ol>'
           : '<ol><li>Abre el menú <b>⋮</b> de Chrome, arriba a la derecha.</li><li>Elige <b>«Instalar aplicación»</b> o <b>«Añadir a pantalla de inicio»</b>.</li></ol>') +
       '<button class="btn ghost" data-act="close">Ahora no</button><p class="quiet" style="font-size:13px">Podrás instalarla más tarde desde «Mi cuenta».</p></div>');
   }
