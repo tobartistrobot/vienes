@@ -78,7 +78,7 @@
       .sort((a, b) => (a.id === S.me ? -1 : b.id === S.me ? 1 : a.name.localeCompare(b.name, 'es')));
   }
   function photo(p, small) {
-    const src = IMG[p.id];
+    const src = p.img ? 'https://commons.wikimedia.org/wiki/Special:FilePath/' + encodeURIComponent(p.img) + '?width=900' : IMG[p.id];
     const ph = '<div class="ph"><span>' + p.e + '</span></div>';
     if (small) return '<div class="thumb"><div class="ph">' + p.e + '</div>' + (src ? '<img src="' + esc(src) + '" alt="" loading="lazy" onerror="this.remove()">' : '') + '</div>';
     return ph + (src ? '<img src="' + esc(src) + '" alt="" draggable="false" onerror="this.remove()">' : '');
@@ -128,7 +128,7 @@
     if (soft) softRender(); else render();
   }
   async function loadImages() {
-    const need = PL.filter(p => p.w && !(p.id in IMG));
+    const need = PL.filter(p => p.w && !p.img && !(p.id in IMG));
     if (!need.length) return;
     for (let i = 0; i < need.length; i += 40) {
       const batch = need.slice(i, i + 40);
@@ -390,9 +390,9 @@
     const ov = overlaps();
     rows.sort((a, b) => (b.love.length - a.love.length) || (b.meh.length - a.meh.length));
     const head = '<h1 class="h-sec">Dónde quiere ir el grupo</h1><p class="sub">De más a menos apoyos. Los «no quiero ir» son privados: solo los ve quien los marca.</p>' +
-      '<div class="chips wrapc" role="group" aria-label="Filtrar por mi voto"><button class="chip f-love" data-act="votef" data-v="2" aria-pressed="' + S.voteF[2] + '">' + ICON.love + 'Me encantaría</button>' +
-      '<button class="chip f-meh" data-act="votef" data-v="1" aria-pressed="' + S.voteF[1] + '">' + ICON.meh + 'No me importaría</button>' +
-      '<button class="chip f-clash" data-act="clashf" aria-pressed="' + S.clashF + '">' + ICON.cal + 'Se solapan' + (ov.length ? ' (' + ov.length + ')' : '') + '</button></div>';
+      '<div class="chips eq3" role="group" aria-label="Filtrar por mi voto"><button class="chip f-love" data-act="votef" data-v="2" aria-pressed="' + S.voteF[2] + '">' + ICON.love + '<span>Me encantaría</span></button>' +
+      '<button class="chip f-meh" data-act="votef" data-v="1" aria-pressed="' + S.voteF[1] + '">' + ICON.meh + '<span>No me importaría</span></button>' +
+      '<button class="chip f-clash" data-act="clashf" aria-pressed="' + S.clashF + '">' + ICON.cal + '<span>Se solapan' + (ov.length ? ' (' + ov.length + ')' : '') + '</span></button></div>';
     if (S.clashF) {
       if (!ov.length) return head + '<div class="empty"><h2>Ningún plan se te solapa</h2><p>Tus quedadas y los planes con fecha fija que has marcado no coinciden en día y hora.</p></div>';
       return head + '<p class="sub">Planes tuyos que coinciden el mismo día con menos de dos horas de margen.</p>' + ov.map(o =>

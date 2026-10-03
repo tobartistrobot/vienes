@@ -117,7 +117,7 @@ main.has-votebar { padding-bottom: calc(var(--tabs-h) + var(--safe-b) + 88px); }
   position: fixed; left: 0; right: 0; bottom: calc(var(--tabs-h) + var(--safe-b)); z-index: 15;
   background: var(--petrol); padding: 8px 0 8px;
 }
-.votes { display: grid; grid-template-columns: 1fr 1fr 1.25fr; gap: 8px; }
+.votes { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 .vote {
   min-height: 68px; border-radius: 4px; padding: 8px 6px; font-weight: 700; font-size: 13.5px; line-height: 1.15;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; text-align: center;
@@ -330,3 +330,6 @@ details summary { cursor: pointer; font-weight: 700; padding: 8px 0; }
 .top { padding-top: calc(10px + env(safe-area-inset-top, 0px)); }
 .gate, .match { padding-top: env(safe-area-inset-top, 0px); }
 .sheet-in { max-height: min(94dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 8px)); }
+.chips.eq3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; overflow: visible; margin: 0 0 8px; padding: 2px 0 8px; }
+.chips.eq3 .chip { display: flex; align-items: center; justify-content: center; gap: 5px; padding: 8px 6px; font-size: 13px; line-height: 1.15; white-space: normal; text-align: center; min-height: 46px; }
+.chips.eq3 .chip svg { margin: 0; flex: none; }

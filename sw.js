@@ -1,6 +1,6 @@
 // Servicio mínimo para que la app se pueda instalar y abra aunque falle la red.
 // Siempre intenta la red primero, así cada visita trae la última versión.
-const CACHE = 'vienes-v4';
+const CACHE = 'vienes-v5';
 const SHELL = ['./', 'index.html', 'styles.css', 'data.js', 'app.js', 'icon.svg', 'icon-192.png', 'manifest.webmanifest'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {
