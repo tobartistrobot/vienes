@@ -120,11 +120,6 @@
   const anim = key => { const a = key !== lastAnim; lastAnim = key; return a ? ' anim' : ''; };
   const person = p => '<span class="pp' + (p.id === me.id ? ' yo' : '') + '">' + avatar(p) + esc(p.id === me.id ? 'Tú' : first(p.name)) + '</span>';
   const pills = (keys, an) => keys.map(k => '<span class="pill f-' + famOf(k) + '">' + esc(an.label[k] || k) + '</span>').join('');
-  function names(who) {
-    const n = who.map(p => first(p.name));
-    if (n.length <= 4) return n.length > 1 ? n.slice(0, -1).join(', ') + ' y ' + n[n.length - 1] : n[0];
-    return n.slice(0, 3).join(', ') + ' y ' + (n.length - 3) + ' más';
-  }
   // Lo que une al grupo: cada palabra compartida es un nudo con las personas a las que une.
   function knots(an) {
     const sh = an.words.filter(w => w.n > 1), solo = an.words.filter(w => w.n === 1);
@@ -278,16 +273,27 @@
     let side = '<aside class="join">' + THREADS + '<h1>Hilos</h1>';
     if (!af) side += '<div class="qr">' + qrSvg(joinUrl()) + '</div><p class="how">Apunta con la cámara del móvil</p><p class="url">' + esc(shortUrl()) + '</p>';
     else {
-      const top = an.words.filter(w => w.n > 1).slice(0, 3);
-      if (top.length) side += '<ul class="tops">' + top.map(w => '<li class="f-' + w.fam + '"><strong>' + esc(w.label) + '</strong><span>une a ' + esc(names(w.who)) + '</span></li>').join('') + '</ul>';
-      side += '<p class="ask">' + QUESTION + '</p>';
+      // Los cinco nudos más fuertes, cada uno con todas las personas a las que une.
+      const top = an.words.filter(w => w.n > 1).slice(0, 5);
+      side += '<h3 class="kt">Nudos más fuertes</h3>' + (top.length
+        ? '<ol class="strong' + anim('nudos') + '">' + top.map(w => '<li class="f-' + w.fam + '"><div class="sw"><strong>' + esc(w.label) + '</strong><span>une a ' + w.n + '</span></div><div class="sp">'
+          + w.who.map(p => '<span class="sc">' + avatar(p) + '<i>' + esc(first(p.name)) + '</i></span>').join('') + '</div></li>').join('') + '</ol>'
+        : '<p class="none">Todavía no hay palabras compartidas.</p>');
     }
     side += '<p class="count"><b>' + an.ps.length + '</b> ' + (an.ps.length === 1 ? 'proyecto en el telar' : 'proyectos en el telar') + '</p></aside>';
     app.innerHTML = '<main class="screen' + (af ? ' af' : '') + '">' + side + '<section class="stage">' + offline()
-      + '<h2>' + (af ? 'Esto es lo que nos une' : 'Así se va tejiendo el grupo') + '</h2>'
+      + '<div class="sh"><h2>' + (af ? 'Nudos que nos unen' : 'Así se va tejiendo el grupo') + '</h2>' + (af ? '<p class="ask">' + QUESTION + '</p>' : '') + '</div>'
       + (an.ps.length ? (wide ? '<div class="loom" id="loom"></div>' : knots(an)) : '<p class="empty">En cuanto alguien envíe sus palabras, aquí empezará el tejido.</p>')
       + '</section></main>';
-    if (wide) drawLoom(an);
+    if (wide) { fitSide(); drawLoom(an); }
+  }
+  // Encoge la columna de nudos hasta que quepa entera; si no basta, deja solo los dibujos, sin nombres.
+  function fitSide() {
+    const el = $('.join'), ol = $('.strong'); if (!el || !ol) return;
+    const over = () => el.scrollHeight > el.clientHeight + 1;
+    const shrink = () => { let k = 1; el.style.setProperty('--ks', k); while (k > .7 && over()) { k -= .05; el.style.setProperty('--ks', k.toFixed(2)); } };
+    shrink();
+    if (over()) { ol.classList.add('tight'); shrink(); }
   }
   // El telar: proyectos a los lados, palabras en el centro como nudos, y un hilo de cada proyecto a cada una de sus palabras.
   let ctx;
