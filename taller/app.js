@@ -36,12 +36,13 @@
       const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16);
     });
   }
-  let me = { token: uuid(), name: '', project: '', words: [], sent: false, id: null, emoji: '' };
+  let me = { token: uuid(), name: '', project: '', words: [], sent: false, id: null, emoji: '', contact: '' };
   try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s && s.token) me = Object.assign(me, s); } catch (e) { /* sin almacenamiento */ }
   if (!me.emoji) me.emoji = EMOJIS[hash(me.token) % EMOJIS.length];
   const save = () => { try { localStorage.setItem(LS, JSON.stringify(me)); } catch (e) { /* sin almacenamiento */ } };
 
   let state = { phase: 'palabras', participants: [] };
+  let contacts = {};
   let lastJson = '', online = true, step = me.sent ? 'listo' : 'hola', tab = 'mias', draft = me.words.slice();
   let pin = '';
   try { pin = sessionStorage.getItem('hilos-pin') || ''; } catch (e) { /* sin almacenamiento */ }
@@ -60,7 +61,10 @@
   async function refresh(force) {
     try {
       const s = await rpc('tl_state');
-      const j = JSON.stringify(s);
+      // Los contactos solo se entregan a quien ya participa o a la anfitriona.
+      if (me.sent || pin) { try { contacts = (await rpc('tl_contacts', { p_token: me.sent ? me.token : null, p_pin: pin || null })) || {}; } catch (e) { /* se reintenta en la siguiente vuelta */ } }
+      else contacts = {};
+      const j = JSON.stringify(s) + JSON.stringify(contacts);
       const changed = j !== lastJson || !online;
       online = true; lastJson = j; state = s;
       // Si la anfitriona vació la sesión, esta participante vuelve al principio.
@@ -85,7 +89,7 @@
         while (MG[k] && i++ < 5) { l = MG[k]; k = norm(l); }
         if (k && keys.indexOf(k) < 0) { keys.push(k); labels[k] = l; }
       });
-      return { id: p.id, name: p.name, project: p.project, keys: keys, labels: labels, hue: hash(p.id) % 6, emoji: p.emoji || '', ini: (first(p.name).charAt(0) || '?').toUpperCase() };
+      return { id: p.id, name: p.name, project: p.project, keys: keys, labels: labels, hue: hash(p.id) % 6, emoji: p.emoji || '', contact: contacts[p.id] || '', ini: (first(p.name).charAt(0) || '?').toUpperCase() };
     });
     const by = {};
     ps.forEach(p => p.keys.forEach(k => {
@@ -125,6 +129,16 @@
   let lastAnim = '';
   const anim = key => { const a = key !== lastAnim; lastAnim = key; return a ? ' anim' : ''; };
   const person = p => '<span class="pp' + (p.id === me.id ? ' yo' : '') + '" data-p="' + p.id + '" role="button" tabindex="0">' + avatar(p) + esc(p.id === me.id ? 'Tú' : first(p.name)) + '</span>';
+  // El contacto se enlaza si es un correo, un teléfono, un @ de Instagram o una dirección web.
+  function contactLink(c) {
+    const t = String(c || '').trim(); if (!t) return '';
+    let href = '';
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)) href = 'mailto:' + t;
+    else if (/^\+?[\d\s().-]{9,}$/.test(t)) href = 'tel:' + t.replace(/[^\d+]/g, '');
+    else if (/^@[\w.]{2,30}$/.test(t)) href = 'https://instagram.com/' + t.slice(1);
+    else if (/^https?:\/\/\S+$/i.test(t)) href = t;
+    return href ? '<a class="ct" href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(t) + '</a>' : '<span class="ct">' + esc(t) + '</span>';
+  }
   const pills = (keys, an) => keys.map(k => '<span class="pill f-' + famOf(k) + '">' + esc(an.label[k] || k) + '</span>').join('');
   // Lo que une al grupo: cada palabra compartida es un nudo con las personas a las que une.
   function knots(an) {
@@ -158,6 +172,7 @@
       + EMOJIS.map(e => '<button type="button" role="radio" aria-checked="' + (e === me.emoji) + '" data-e="' + e + '">' + e + '</button>').join('') + '</div></div>'
       + '<label class="field"><span>¿Cómo te llamas?</span><input class="input" id="n" maxlength="40" autocomplete="given-name" value="' + esc(me.name) + '"></label>'
       + '<label class="field"><span>¿Cómo se llama tu proyecto?</span><input class="input" id="p" maxlength="60" autocomplete="off" value="' + esc(me.project) + '"></label>'
+      + '<label class="field"><span>¿Cómo pueden contactarte después?</span><input class="input" id="c" maxlength="80" autocomplete="off" placeholder="Instagram, teléfono o correo" value="' + esc(me.contact || '') + '"><small>Opcional. Solo lo verán las participantes.</small></label>'
       + '<p class="err" id="e" hidden></p><button class="btn" type="submit">Elegir mis palabras</button></form></main>';
     app.querySelectorAll('[data-e]').forEach(b => b.onclick = () => {
       me.emoji = b.dataset.e; save(); buzz();
@@ -167,7 +182,7 @@
       ev.preventDefault();
       const n = $('#n').value.trim(), p = $('#p').value.trim();
       if (!n || !p) { const e = $('#e'); e.hidden = false; e.textContent = 'Escribe tu nombre y el de tu proyecto para continuar.'; return; }
-      me.name = n; me.project = p; save(); step = 'palabras'; render(); window.scrollTo(0, 0);
+      me.name = n; me.project = p; me.contact = $('#c').value.trim(); save(); step = 'palabras'; render(); window.scrollTo(0, 0);
     };
   }
   function viewPalabras() {
@@ -216,6 +231,7 @@
     const b = $('#send'); b.disabled = true; b.textContent = 'Enviando…';
     try {
       me.id = await rpc('tl_join_emoji', { p_token: me.token, p_name: me.name, p_project: me.project, p_words: draft, p_emoji: me.emoji });
+      try { await rpc('tl_set_contact', { p_token: me.token, p_contact: me.contact || '' }); } catch (e) { /* el contacto es opcional */ }
       me.words = draft.slice(); me.sent = true; save(); step = 'listo'; tab = 'mias';
       await refresh(true); window.scrollTo(0, 0);
     } catch (e) {
@@ -249,11 +265,13 @@
         h += '<h1>Lo que nos une</h1><p class="lead">Cada palabra es un nudo que junta a varias de nosotras.</p>' + knots(an);
       } else {
         h += '<h1>Estamos ' + an.ps.length + '</h1><p class="lead">Todos los proyectos del grupo, para seguir en contacto.</p><ul class="dir">' + an.ps.map(p =>
-          '<li' + (p.id === me.id ? ' class="me"' : '') + '>' + avatar(p, 'lg') + '<div><strong>' + esc(p.project) + '</strong><span>de ' + esc(p.name) + (p.id === me.id ? ' (tú)' : '') + '</span><div class="row">' + pills(p.keys, an) + '</div></div></li>').join('') + '</ul>';
+          '<li' + (p.id === me.id ? ' class="me"' : '') + '>' + avatar(p, 'lg') + '<div><strong>' + esc(p.project) + '</strong><span>de ' + esc(p.name) + (p.id === me.id ? ' (tú)' : '') + '</span>' + contactLink(p.contact)
+          + (p.id === me.id && !p.contact ? '<button class="linkbtn" id="addc">Añadir mi contacto</button>' : '') + '<div class="row">' + pills(p.keys, an) + '</div></div></li>').join('') + '</ul>';
       }
     }
     app.innerHTML = h + '</main>';
     app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); window.scrollTo(0, 0); });
+    const ac = $('#addc'); if (ac) ac.onclick = () => { draft = me.words.slice(); step = 'hola'; render(); window.scrollTo(0, 0); const c = $('#c'); if (c) c.focus(); };
     const e = $('#edit'); if (e) e.onclick = () => { draft = me.words.slice(); step = 'palabras'; render(); window.scrollTo(0, 0); };
   }
   // Una afinidad: dos personas unidas por un hilo por cada palabra que comparten.
@@ -460,7 +478,7 @@
     btn.disabled = false; btn.textContent = old;
   }
   function listText(an) {
-    return 'Hilos: los proyectos del grupo\n\n' + an.ps.map(p => (p.emoji ? p.emoji + ' ' : '') + p.project + ' (' + p.name + ')\n' + p.keys.map(k => an.label[k]).join(', ')).join('\n\n');
+    return 'Hilos: los proyectos del grupo\n\n' + an.ps.map(p => (p.emoji ? p.emoji + ' ' : '') + p.project + ' (' + p.name + ')\n' + p.keys.map(k => an.label[k]).join(', ') + (p.contact ? '\nContacto: ' + p.contact : '')).join('\n\n');
   }
   async function copyText(t) {
     try { await navigator.clipboard.writeText(t); return true; } catch (e) { /* sin permiso: se intenta a la antigua */ }
@@ -497,7 +515,7 @@
     }
     sheetEl.innerHTML = '<div class="sheet-in" role="dialog" aria-modal="true" aria-label="' + esc(p.project) + '"><button class="x" aria-label="Cerrar">×</button>'
       + '<span class="av a' + p.hue + (p.emoji ? ' em' : '') + ' xl">' + esc(p.emoji || p.ini) + '</span><h2>' + esc(p.project) + '</h2><p class="who">de ' + esc(p.name) + (mine && mine.id === p.id ? ' (tú)' : '') + '</p>'
-      + '<div class="row">' + pills(p.keys, an) + '</div>' + rel + '</div>';
+      + contactLink(p.contact) + '<div class="row">' + pills(p.keys, an) + '</div>' + rel + '</div>';
     sheetEl.hidden = false; $('.x', sheetEl).focus();
   }
   const closeSheet = () => { sheetEl.hidden = true; sheetEl.innerHTML = ''; };
@@ -545,7 +563,7 @@
       + (an.ps.length ? mergeBox(an) + '<h2 class="sub">Recuerdo del taller</h2><p class="lead small">Para compartir con el grupo cuando terminéis.</p>'
         + '<button class="btn ghost" id="keep">Descargar la imagen del telar y los proyectos</button><button class="btn ghost" id="copy">Copiar la lista de proyectos</button>' : '')
       + '<h2 class="sub">Participantes</h2>' + (an.ps.length ? '<ul class="dir">' + an.ps.map(p =>
-        '<li>' + avatar(p, 'lg') + '<div><strong>' + esc(p.project) + '</strong><span>de ' + esc(p.name) + '</span><div class="row">' + pills(p.keys, an) + '</div><button class="linkbtn danger" data-del="' + p.id + '">Quitar</button></div></li>').join('') + '</ul>' : '<p class="empty">Nadie ha entrado todavía.</p>')
+        '<li>' + avatar(p, 'lg') + '<div><strong>' + esc(p.project) + '</strong><span>de ' + esc(p.name) + '</span>' + contactLink(p.contact) + '<div class="row">' + pills(p.keys, an) + '</div><button class="linkbtn danger" data-del="' + p.id + '">Quitar</button></div></li>').join('') + '</ul>' : '<p class="empty">Nadie ha entrado todavía.</p>')
       + '<button class="linkbtn danger" id="reset">Vaciar todo y empezar de cero</button></main>';
     const y = window.scrollY, open = ['d1', 'd2', 'd3'].filter(i => $('#' + i) && $('#' + i).open);
     app.innerHTML = h; window.scrollTo(0, y); open.forEach(i => { if ($('#' + i)) $('#' + i).open = true; });

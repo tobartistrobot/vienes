@@ -188,7 +188,13 @@ h2 { font: 700 20px/1.2 var(--display); letter-spacing: -.01em; }
 .dir li.me { box-shadow: 0 0 0 2px var(--tinta), 0 6px 20px rgba(56, 32, 63, .07); }
 .dir li > div { min-width: 0; flex: 1; }
 .dir strong { display: block; font: 700 19px/1.2 var(--display); }
-.dir li > div > span { color: var(--tinta-suave); font-size: 15px; }
+.dir li > div > span { display: block; color: var(--tinta-suave); font-size: 15px; }
+.ct { display: inline-flex; align-items: center; max-width: 100%; margin-top: 8px; padding: 5px 14px; border-radius: 16px; background: #F4ECF7; color: var(--violeta); font-weight: 700; font-size: 15px; text-decoration: none; overflow-wrap: anywhere; }
+a.ct { text-decoration: underline; text-underline-offset: 3px; }
+.dir li > div > .ct { display: inline-flex; color: var(--violeta); }
+.dir #addc { margin: 6px 0 0; padding: 4px 0; }
+.sheet-in .ct { margin-top: 12px; }
+.field small { display: block; margin-top: 6px; font-size: 14px; color: var(--tinta-suave); }
 .dir .row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .dir .pill { min-height: 26px; padding: 2px 10px; font-size: 13px; }
 .dir .linkbtn { margin: 6px 0 0; padding: 4px 0; }
