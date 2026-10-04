@@ -4,6 +4,7 @@
   const KEY = 'sb_publishable_kv-OaceZaIkT6dV_VH1S7w_CwiKNFHr';
   const MAX = 5;
   const QUESTION = '¿Qué podríamos hacer juntas?';
+  const EMOJIS = ['🌸', '🌷', '🌻', '🍀', '🦋', '🐝', '🦊', '🐱', '🦉', '🐬', '🍓', '🍋', '🍒', '🥐', '🎨', '🎻', '📚', '🎧', '⭐', '🌙', '🔥', '🌈', '💃', '🚲'];
 
   // Conceptos para elegir, por familias. Cada familia tiene su color de hilo.
   const FAMILIES = [
@@ -35,8 +36,9 @@
       const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16);
     });
   }
-  let me = { token: uuid(), name: '', project: '', words: [], sent: false, id: null };
+  let me = { token: uuid(), name: '', project: '', words: [], sent: false, id: null, emoji: '' };
   try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); if (s && s.token) me = Object.assign(me, s); } catch (e) { /* sin almacenamiento */ }
+  if (!me.emoji) me.emoji = EMOJIS[hash(me.token) % EMOJIS.length];
   const save = () => { try { localStorage.setItem(LS, JSON.stringify(me)); } catch (e) { /* sin almacenamiento */ } };
 
   let state = { phase: 'palabras', participants: [] };
@@ -77,7 +79,7 @@
     const ps = state.participants.map(p => {
       const keys = [], labels = {};
       p.words.forEach(w => { const k = norm(w); if (k && keys.indexOf(k) < 0) { keys.push(k); labels[k] = w; } });
-      return { id: p.id, name: p.name, project: p.project, keys: keys, labels: labels, hue: hash(p.id) % 6, ini: (first(p.name).charAt(0) || '?').toUpperCase() };
+      return { id: p.id, name: p.name, project: p.project, keys: keys, labels: labels, hue: hash(p.id) % 6, emoji: p.emoji || '', ini: (first(p.name).charAt(0) || '?').toUpperCase() };
     });
     const by = {};
     ps.forEach(p => p.keys.forEach(k => {
@@ -112,7 +114,10 @@
     + '<path class="t2" d="M-10 96C60 100 110 18 180 22S270 96 330 84"/>'
     + '<path class="t3" d="M-10 60C80 30 120 86 200 58S280 40 330 62"/></svg>';
 
-  const avatar = (p, cls) => '<span class="av a' + p.hue + ' ' + (cls || '') + '" aria-hidden="true">' + esc(p.ini) + '</span>';
+  const avatar = (p, cls) => '<span class="av a' + p.hue + (p.emoji ? ' em ' : ' ') + (cls || '') + '" aria-hidden="true">' + esc(p.emoji || p.ini) + '</span>';
+  // Las animaciones de entrada solo se lanzan cuando cambia la vista, no en cada actualización.
+  let lastAnim = '';
+  const anim = key => { const a = key !== lastAnim; lastAnim = key; return a ? ' anim' : ''; };
   const person = p => '<span class="pp' + (p.id === me.id ? ' yo' : '') + '">' + avatar(p) + esc(p.id === me.id ? 'Tú' : first(p.name)) + '</span>';
   const pills = (keys, an) => keys.map(k => '<span class="pill f-' + famOf(k) + '">' + esc(an.label[k] || k) + '</span>').join('');
   function names(who) {
@@ -148,9 +153,15 @@
   function viewHola() {
     app.innerHTML = '<main class="wrap hola">' + THREADS
       + '<h1>Hilos</h1><p class="lead">Cada proyecto es un hilo. Vamos a descubrir con cuáles se entrelaza el tuyo.</p>'
-      + '<form id="f" novalidate><label class="field"><span>¿Cómo te llamas?</span><input class="input" id="n" maxlength="40" autocomplete="given-name" value="' + esc(me.name) + '"></label>'
+      + '<form id="f" novalidate><div class="field"><span id="el">Elige tu dibujo</span><div class="emojis" role="radiogroup" aria-labelledby="el">'
+      + EMOJIS.map(e => '<button type="button" role="radio" aria-checked="' + (e === me.emoji) + '" data-e="' + e + '">' + e + '</button>').join('') + '</div></div>'
+      + '<label class="field"><span>¿Cómo te llamas?</span><input class="input" id="n" maxlength="40" autocomplete="given-name" value="' + esc(me.name) + '"></label>'
       + '<label class="field"><span>¿Cómo se llama tu proyecto?</span><input class="input" id="p" maxlength="60" autocomplete="off" value="' + esc(me.project) + '"></label>'
       + '<p class="err" id="e" hidden></p><button class="btn" type="submit">Elegir mis palabras</button></form></main>';
+    app.querySelectorAll('[data-e]').forEach(b => b.onclick = () => {
+      me.emoji = b.dataset.e; save(); buzz();
+      app.querySelectorAll('[data-e]').forEach(x => x.setAttribute('aria-checked', x === b));
+    });
     $('#f').onsubmit = ev => {
       ev.preventDefault();
       const n = $('#n').value.trim(), p = $('#p').value.trim();
@@ -160,7 +171,7 @@
   }
   function viewPalabras() {
     const dk = draft.map(norm);
-    let h = '<main class="wrap pick"><header class="picktop"><p class="proj">' + esc(me.project) + '</p>'
+    let h = '<main class="wrap pick"><header class="picktop"><p class="proj"><span class="av em">' + esc(me.emoji) + '</span>' + esc(me.project) + '</p>'
       + '<h1>¿Qué 5 palabras lo cuentan mejor?</h1>'
       + '<div class="slots" aria-live="polite">';
     for (let i = 0; i < MAX; i++) {
@@ -192,17 +203,18 @@
     $('#back').onclick = () => { step = 'hola'; render(); };
     $('#send').onclick = send;
   }
+  const buzz = () => { try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) { /* sin vibración */ } };
   function toggle(w, addOnly) {
     const k = norm(w), i = draft.map(norm).indexOf(k);
     if (i >= 0) { if (addOnly) return toast('Esa palabra ya la tienes.'); draft.splice(i, 1); }
     else if (draft.length >= MAX) return toast('Ya tienes 5. Quita una para cambiarla.');
     else draft.push(w);
-    viewPalabras();
+    buzz(); viewPalabras();
   }
   async function send() {
     const b = $('#send'); b.disabled = true; b.textContent = 'Enviando…';
     try {
-      me.id = await rpc('tl_join', { p_token: me.token, p_name: me.name, p_project: me.project, p_words: draft });
+      me.id = await rpc('tl_join_emoji', { p_token: me.token, p_name: me.name, p_project: me.project, p_words: draft, p_emoji: me.emoji });
       me.words = draft.slice(); me.sent = true; save(); step = 'listo'; tab = 'mias';
       await refresh(true); window.scrollTo(0, 0);
     } catch (e) {
@@ -214,17 +226,18 @@
   function viewListo() {
     const an = analyse();
     const mine = an.ps.filter(p => p.id === me.id)[0];
-    let h = '<main class="wrap listo">' + offline();
-    if (state.phase !== 'afinidades' || !mine) {
+    const waiting = state.phase !== 'afinidades' || !mine;
+    let h = '<main class="wrap listo' + anim(waiting ? 'espera' : 'af-' + tab) + '">' + offline();
+    if (waiting) {
       const others = an.ps.filter(p => p.id !== me.id);
-      h += THREADS + '<h1>Tu hilo ya está en el telar</h1>'
+      h += '<div class="hero">' + THREADS + (mine ? avatar(mine, 'xl') : '') + '</div><h1>Tu hilo ya está en el telar</h1>'
         + '<div class="mine">' + (mine ? pills(mine.keys, an) : '') + '</div>'
         + '<p class="lead">En cuanto estéis todas, verás con quién se entrelaza.</p>'
         + '<h2 class="sub">' + (others.length ? 'Ya estáis ' + an.ps.length : 'Eres la primera en llegar') + '</h2>'
         + '<div class="crowd">' + an.ps.map(person).join('') + '</div>'
         + '<button class="linkbtn" id="edit">Cambiar mis palabras</button>';
     } else {
-      h += '<nav class="tabs" role="tablist">' + [['mias', 'Mis hilos'], ['grupo', 'Lo que nos une'], ['todas', 'Todas']].map(t =>
+      h += '<nav class="tabs" role="tablist">' + [['mias', 'Mis hilos'], ['grupo', 'Nos une'], ['todas', 'Todas']].map(t =>
         '<button role="tab" aria-selected="' + (tab === t[0]) + '" data-tab="' + t[0] + '">' + t[1] + '</button>').join('') + '</nav>';
       if (tab === 'mias') {
         const ms = matchesFor(mine, an.ps);
@@ -255,7 +268,7 @@
       ths = '<div class="th none f-propia"><span>por estrenar</span></div>';
       why = 'Un hilo por estrenar: no compartís palabras, y justo por eso puede salir algo que ninguna espera.';
     }
-    return '<article class="match"><div class="tie">' + avatar(mine, 'lg') + '<div class="ths">' + ths + '</div>' + avatar(m.p, 'lg') + '</div>'
+    return '<article class="match"><div class="tie"><div class="end">' + avatar(mine, 'lg') + '<small>Tú</small></div><div class="ths">' + ths + '</div><div class="end">' + avatar(m.p, 'lg') + '<small>' + esc(first(m.p.name)) + '</small></div></div>'
       + '<h2>' + esc(m.p.project) + '</h2><p class="who">de ' + esc(m.p.name) + '</p><p class="why">' + why + '</p></article>';
   }
 
@@ -346,7 +359,7 @@
     an.ps.forEach(p => {
       const q = pos[p.id], tx = q.side ? q.x + r + 10 : q.x - r - 10;
       let pr = p.project; while (pr.length > 4 && measure(pr, fsL) > labW - 6) pr = pr.slice(0, -2).trim() + '…';
-      nd += '<g class="n a' + p.hue + '"><circle cx="' + q.x + '" cy="' + q.y.toFixed(1) + '" r="' + r.toFixed(1) + '"/><text class="ni" x="' + q.x + '" y="' + q.y.toFixed(1) + '" font-size="' + (r * .95).toFixed(1) + '">' + esc(p.ini) + '</text>'
+      nd += '<g class="n a' + p.hue + (p.emoji ? ' em' : '') + '"><circle cx="' + q.x + '" cy="' + q.y.toFixed(1) + '" r="' + r.toFixed(1) + '"/><text class="ni" x="' + q.x + '" y="' + q.y.toFixed(1) + '" font-size="' + (r * (p.emoji ? 1.15 : .95)).toFixed(1) + '">' + esc(p.emoji || p.ini) + '</text>'
         + '<text class="np" text-anchor="' + (q.side ? 'start' : 'end') + '" x="' + tx.toFixed(1) + '" y="' + (q.y - (two ? fsL * .32 : 0)).toFixed(1) + '" font-size="' + fsL.toFixed(1) + '">' + esc(pr) + '</text>'
         + (two ? '<text class="nn" text-anchor="' + (q.side ? 'start' : 'end') + '" x="' + tx.toFixed(1) + '" y="' + (q.y + fsL * .78).toFixed(1) + '" font-size="' + (fsL * .78).toFixed(1) + '">' + esc(first(p.name)) + '</text>' : '') + '</g>';
     });
