@@ -113,7 +113,7 @@ span.chip.mini { min-height: 26px; padding: 2px 10px; font-size: 13px; }
 .cloud { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 4px 14px; padding: 18px 0; }
 .cw {
   font-family: var(--display); font-weight: 700; color: var(--c); line-height: 1.1; white-space: nowrap; letter-spacing: -.02em;
-  font-size: calc(17px + var(--s) * 30px); opacity: calc(.72 + var(--s) * .28); transition: font-size .6s cubic-bezier(.3, 1.4, .5, 1);
+  font-size: 22px; font-size: calc(17px + var(--s) * 30px); opacity: 1; opacity: calc(.86 + var(--s) * .14); transition: font-size .6s cubic-bezier(.3, 1.4, .5, 1);
 }
 .cw sup { font: 700 .42em var(--body); margin-left: 2px; vertical-align: super; letter-spacing: 0; }
 .mine { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -158,14 +158,14 @@ span.chip.mini { min-height: 26px; padding: 2px 10px; font-size: 13px; }
 .is-screen .f-propia { --c: #fff; }
 .screen { height: 100dvh; display: grid; grid-template-columns: minmax(300px, 26vw) 1fr; overflow: hidden; }
 .screen > * { min-height: 0; overflow: hidden; }
-.join { padding: 3vw; border-right: 1px solid var(--linea); display: flex; flex-direction: column; }
-.join h1 { font-size: clamp(56px, 6.4vw, 120px); line-height: .9; letter-spacing: -.045em; }
-.join .threads { height: 6vw; min-height: 60px; }
+.join { padding: min(3vw, 5vh) 3vw; border-right: 1px solid var(--linea); display: flex; flex-direction: column; }
+.join h1 { font-size: min(clamp(56px, 6.4vw, 120px), 13vh); line-height: .9; letter-spacing: -.045em; }
+.join .threads { height: 7vh; min-height: 40px; flex: none; }
 .join .qr { width: 100%; max-width: none; margin: 2.2vw 0 1vw; }
 .how { font-size: clamp(18px, 1.5vw, 28px); font-weight: 600; }
 .join .url { text-align: left; font-size: clamp(14px, 1.15vw, 22px); color: var(--tinta-suave); margin-top: 4px; }
-.join .count { margin-top: auto; padding-top: 2vw; font-size: clamp(18px, 1.5vw, 28px); }
-.join .count b { font-size: clamp(64px, 6vw, 120px); display: block; }
+.join .count { margin-top: auto; padding-top: 2vh; font-size: clamp(18px, 1.5vw, 28px); }
+.join .count b { font-size: min(clamp(56px, 6vw, 120px), 11vh); display: block; }
 .screen.af .join .count { margin-top: 2vw; }
 .join h3 { margin-top: 2vw; font-size: clamp(15px, 1.1vw, 20px); }
 .pairs li { padding: .7vw 0; border-top: 1px solid var(--linea); font-size: clamp(15px, 1.15vw, 22px); line-height: 1.3; }
@@ -174,8 +174,10 @@ span.chip.mini { min-height: 26px; padding: 2px 10px; font-size: 13px; }
 .stage { padding: 3vw 4vw; display: flex; flex-direction: column; min-width: 0; }
 .stage h2 { font-size: clamp(22px, 2vw, 40px); color: var(--tinta-suave); font-weight: 500; }
 .cloud.big { flex: 1 0 auto; align-content: center; gap: calc(.6vw * var(--k, 1)) calc(2vw * var(--k, 1)); padding: 1.4vw 0; }
-.cloud.big .cw { font-size: calc((clamp(20px, 1.9vw, 38px) + var(--s) * clamp(40px, 5.4vw, 110px)) * var(--k, 1)); transition: none; }
-.join .qr { max-height: 44vh; aspect-ratio: 1; width: auto; align-self: flex-start; }
+.cloud.big .cw { font-size: 40px; font-size: max(clamp(13px, 1vw, 20px), calc((clamp(20px, 1.9vw, 38px) + var(--s) * clamp(40px, 5.4vw, 110px)) * var(--k, 1))); transition: none; max-width: 100%; white-space: normal; text-align: center; }
+.join .qr { width: min(100%, 34vh); max-width: none; margin: 2vh 0 1.4vh; }
+.projs { display: flex; flex-wrap: wrap; gap: .3vw 1.6vw; border-top: 1px solid var(--linea); padding-top: 1.2vw; font-size: clamp(13px, 1.05vw, 21px); color: var(--tinta-suave); }
+.projs strong { color: #fff; font-family: var(--display); margin-right: .3em; }
 .is-screen .empty { font-size: clamp(18px, 1.6vw, 30px); margin: auto; }
 .screen .ins { grid-template-columns: 1.1fr 1fr; gap: 3vw; font-size: clamp(16px, 1.25vw, 24px); border-top: 1px solid var(--linea); padding-top: 1.6vw; }
 .screen .ins h3 { font-size: clamp(14px, 1vw, 20px); }
@@ -183,7 +185,7 @@ span.chip.mini { min-height: 26px; padding: 2px 10px; font-size: 13px; }
   .screen { grid-template-columns: 1fr; height: auto; overflow: visible; }
   .screen > * { overflow: visible; }
   .join { border-right: 0; border-bottom: 1px solid var(--linea); padding: 24px 18px; }
-  .join .qr { max-width: 280px; margin: 16px 0 10px; }
+  .join .qr { width: 100%; max-width: 280px; margin: 16px 0 10px; }
   .join .count { margin-top: 18px; }
   .stage { padding: 24px 18px; }
   .screen .ins { grid-template-columns: 1fr; }

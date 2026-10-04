@@ -256,22 +256,27 @@
       const pairs = [];
       an.ps.forEach((a, i) => an.ps.slice(i + 1).forEach(b => { const x = affinity(a, b); if (x.shared.length > 1) pairs.push({ a: a, b: b, x: x }); }));
       pairs.sort((p, q) => q.x.score - p.x.score);
-      side += '<h3>Los hilos más fuertes</h3>' + (pairs.length ? '<ul class="pairs">' + pairs.slice(0, 4).map(p =>
+      side += '<h3>Los hilos más fuertes</h3>' + (pairs.length ? '<ul class="pairs">' + pairs.slice(0, window.innerHeight < 800 ? 2 : 4).map(p =>
         '<li><strong>' + esc(p.a.project) + '</strong> y <strong>' + esc(p.b.project) + '</strong><span>' + p.x.shared.map(k => esc(an.label[k])).join(', ') + '</span></li>').join('') + '</ul>'
         : '<p class="muted">Mirad vuestro móvil para ver vuestros proyectos afines.</p>');
       side += '<p class="ask">' + QUESTION + '</p>';
     }
     side += '</aside>';
     app.innerHTML = '<main class="screen' + (af ? ' af' : '') + '">' + side + '<section class="stage">' + offline()
-      + '<h2>' + (af ? 'Lo que mueve al grupo' : 'Las palabras de nuestros proyectos') + '</h2>' + cloud(an, true) + (af ? insights(an) : '') + '</section></main>';
+      + '<h2>' + (af ? 'Lo que mueve al grupo' : 'Las palabras de nuestros proyectos') + '</h2>' + cloud(an, true) + (af ? insights(an) : projects(an)) + '</section></main>';
     fit();
+  }
+  function projects(an) {
+    if (!an.ps.length) return '';
+    return '<ul class="projs">' + an.ps.slice().reverse().map(p => '<li><strong>' + esc(p.project) + '</strong> ' + esc(p.name) + '</li>').join('') + '</ul>';
   }
   // Encoge la nube hasta que todo quepa en la pantalla, sin barras de desplazamiento.
   function fit() {
     const cl = $('.cloud.big'), st = $('.stage');
     if (!cl || window.innerWidth <= 760) return;
-    let k = 1; cl.style.setProperty('--k', k);
-    while (k > .28 && st.scrollHeight > st.clientHeight + 1) { k -= .04; cl.style.setProperty('--k', k.toFixed(2)); }
+    // Empieza grande y va encogiendo: con pocas palabras se ven enormes, con muchas caben todas.
+    let k = 3.2; cl.style.setProperty('--k', k);
+    while (k > .28 && st.scrollHeight > st.clientHeight + 1) { k -= .05; cl.style.setProperty('--k', k.toFixed(2)); }
   }
 
   /* ---------- Control de la anfitriona ---------- */
