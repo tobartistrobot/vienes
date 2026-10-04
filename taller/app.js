@@ -282,7 +282,7 @@
     }
     side += '<p class="count"><b>' + an.ps.length + '</b> ' + (an.ps.length === 1 ? 'proyecto en el telar' : 'proyectos en el telar') + '</p></aside>';
     app.innerHTML = '<main class="screen' + (af ? ' af' : '') + '">' + side + '<section class="stage">' + offline()
-      + '<div class="sh"><h2>' + (af ? 'Nudos que nos unen' : 'Así se va tejiendo el grupo') + '</h2>' + (af ? '<p class="ask">' + QUESTION + '</p>' : '') + '</div>'
+      + '<div class="sh"><h2>' + (af ? 'Lazos que nos unen' : 'Así se va tejiendo el grupo') + '</h2>' + (af ? '<p class="ask">' + QUESTION + '</p>' : '') + '</div>'
       + (an.ps.length ? (wide ? '<div class="loom" id="loom"></div>' : knots(an)) : '<p class="empty">En cuanto alguien envíe sus palabras, aquí empezará el tejido.</p>')
       + '</section></main>';
     if (wide) { fitSide(); drawLoom(an); }
