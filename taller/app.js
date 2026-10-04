@@ -76,9 +76,15 @@
 
   /* ---------- Cálculos ---------- */
   function analyse() {
+    // Palabras que la anfitriona ha juntado: cada una se cuenta como la palabra a la que apunta.
+    const MG = {}; (state.merges || []).forEach(m => { MG[m.from] = m.to; });
     const ps = state.participants.map(p => {
       const keys = [], labels = {};
-      p.words.forEach(w => { const k = norm(w); if (k && keys.indexOf(k) < 0) { keys.push(k); labels[k] = w; } });
+      p.words.forEach(w => {
+        let k = norm(w), l = w, i = 0;
+        while (MG[k] && i++ < 5) { l = MG[k]; k = norm(l); }
+        if (k && keys.indexOf(k) < 0) { keys.push(k); labels[k] = l; }
+      });
       return { id: p.id, name: p.name, project: p.project, keys: keys, labels: labels, hue: hash(p.id) % 6, emoji: p.emoji || '', ini: (first(p.name).charAt(0) || '?').toUpperCase() };
     });
     const by = {};
@@ -90,7 +96,7 @@
     const words = Object.keys(by).map(k => { by[k].n = by[k].who.length; label[k] = by[k].label; return by[k]; })
       .sort((a, b) => b.n - a.n || a.label.localeCompare(b.label, 'es'));
     const unused = Object.keys(CONCEPT).filter(k => !by[k]).map(k => CONCEPT[k].label);
-    return { ps: ps, words: words, label: label, unused: unused };
+    return { ps: ps, words: words, label: label, unused: unused, merges: state.merges || [] };
   }
   function affinity(a, b) {
     const shared = a.keys.filter(k => b.keys.indexOf(k) >= 0);
@@ -114,11 +120,11 @@
     + '<path class="t2" d="M-10 96C60 100 110 18 180 22S270 96 330 84"/>'
     + '<path class="t3" d="M-10 60C80 30 120 86 200 58S280 40 330 62"/></svg>';
 
-  const avatar = (p, cls) => '<span class="av a' + p.hue + (p.emoji ? ' em ' : ' ') + (cls || '') + '" aria-hidden="true">' + esc(p.emoji || p.ini) + '</span>';
+  const avatar = (p, cls) => '<span class="av a' + p.hue + (p.emoji ? ' em ' : ' ') + (cls || '') + '" data-p="' + p.id + '" aria-hidden="true">' + esc(p.emoji || p.ini) + '</span>';
   // Las animaciones de entrada solo se lanzan cuando cambia la vista, no en cada actualización.
   let lastAnim = '';
   const anim = key => { const a = key !== lastAnim; lastAnim = key; return a ? ' anim' : ''; };
-  const person = p => '<span class="pp' + (p.id === me.id ? ' yo' : '') + '">' + avatar(p) + esc(p.id === me.id ? 'Tú' : first(p.name)) + '</span>';
+  const person = p => '<span class="pp' + (p.id === me.id ? ' yo' : '') + '" data-p="' + p.id + '" role="button" tabindex="0">' + avatar(p) + esc(p.id === me.id ? 'Tú' : first(p.name)) + '</span>';
   const pills = (keys, an) => keys.map(k => '<span class="pill f-' + famOf(k) + '">' + esc(an.label[k] || k) + '</span>').join('');
   // Lo que une al grupo: cada palabra compartida es un nudo con las personas a las que une.
   function knots(an) {
@@ -277,7 +283,7 @@
       const top = an.words.filter(w => w.n > 1).slice(0, 5);
       side += '<h3 class="kt">Nudos más fuertes</h3>' + (top.length
         ? '<ol class="strong' + anim('nudos') + '">' + top.map(w => '<li class="f-' + w.fam + '"><div class="sw"><strong>' + esc(w.label) + '</strong><span>une a ' + w.n + '</span></div><div class="sp">'
-          + w.who.map(p => '<span class="sc">' + avatar(p) + '<i>' + esc(first(p.name)) + '</i></span>').join('') + '</div></li>').join('') + '</ol>'
+          + w.who.map(p => '<span class="sc" data-p="' + p.id + '">' + avatar(p) + '<i>' + esc(first(p.name)) + '</i></span>').join('') + '</div></li>').join('') + '</ol>'
         : '<p class="none">Todavía no hay palabras compartidas.</p>');
     }
     side += '<p class="count"><b>' + an.ps.length + '</b> ' + (an.ps.length === 1 ? 'proyecto en el telar' : 'proyectos en el telar') + '</p></aside>';
@@ -296,16 +302,21 @@
     if (over()) { ol.classList.add('tight'); shrink(); }
   }
   // El telar: proyectos a los lados, palabras en el centro como nudos, y un hilo de cada proyecto a cada una de sus palabras.
-  let ctx;
+  let ctx, expFont = '';
   function measure(t, fs) {
     if (!ctx) ctx = document.createElement('canvas').getContext('2d');
-    ctx.font = '700 ' + fs + 'px "Bricolage Grotesque", Figtree, system-ui, sans-serif';
+    ctx.font = '700 ' + fs + 'px ' + (expFont || '"Bricolage Grotesque", Figtree, system-ui, sans-serif');
     return ctx.measureText(t).width;
   }
   function drawLoom(an) {
     const el = $('#loom'); if (!el) return;
-    const W = el.clientWidth, H = el.clientHeight, n = an.ps.length;
-    if (!n || W < 300 || H < 200) return;
+    const W = el.clientWidth, H = el.clientHeight;
+    if (!an.ps.length || W < 300 || H < 200) return;
+    el.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="Proyectos unidos por las palabras que comparten">' + loomMarkup(an, W, H) + '</svg>';
+  }
+  // Devuelve el dibujo del telar para un hueco de W x H. Con exp, sin animaciones (para la imagen de recuerdo).
+  function loomMarkup(an, W, H, exp) {
+    const n = an.ps.length;
     const nL = Math.ceil(n / 2), gap = Math.min(92, (H - 16) / nL);
     const r = Math.max(8, Math.min(22, gap * .34)), fsL = Math.max(11, Math.min(19, gap * .36));
     const labW = Math.min(W * .17, 250), xL = labW + r + 12, xR = W - labW - r - 12;
@@ -353,11 +364,11 @@
     ks.forEach(k => {
       k.w.who.forEach(p => {
         const q = pos[p.id], sx = q.x + (q.side ? -r : r), ex = k.x + (q.side ? k.bw / 2 : -k.bw / 2), mx = (ex - sx) * .5;
-        const id = p.id + '|' + k.w.k, fresh = !seen[id]; seen[id] = 1;
+        const id = p.id + '|' + k.w.k, fresh = !exp && !seen[id]; if (!exp) seen[id] = 1;
         th += '<path pathLength="1" class="t f-' + k.w.fam + (k.w.n > 1 ? ' sh' : '') + (fresh ? ' fresh' : '') + '"' + (fresh ? ' style="animation-delay:' + (Math.min(d++, 40) * 30) + 'ms"' : '')
           + ' d="M' + sx.toFixed(1) + ' ' + q.y.toFixed(1) + 'C' + (sx + mx).toFixed(1) + ' ' + q.y.toFixed(1) + ' ' + (ex - mx).toFixed(1) + ' ' + k.y.toFixed(1) + ' ' + ex.toFixed(1) + ' ' + k.y.toFixed(1) + '"/>';
       });
-      const id = 'k|' + k.w.k + '|' + (k.w.n > 1), fresh = !seen[id]; seen[id] = 1;
+      const id = 'k|' + k.w.k + '|' + (k.w.n > 1), fresh = !exp && !seen[id]; if (!exp) seen[id] = 1;
       kn += '<g class="k f-' + k.w.fam + (k.w.n > 1 ? ' sh' : '') + (fresh ? ' fresh' : '') + '"><rect x="' + (k.x - k.bw / 2).toFixed(1) + '" y="' + (k.y - k.bh / 2).toFixed(1) + '" width="' + k.bw.toFixed(1) + '" height="' + k.bh.toFixed(1) + '" rx="' + (k.bh / 2).toFixed(1) + '"/>'
         + '<text x="' + k.x.toFixed(1) + '" y="' + k.y.toFixed(1) + '" font-size="' + k.fs.toFixed(1) + '">' + esc(k.w.label) + '</text></g>';
     });
@@ -365,14 +376,150 @@
     an.ps.forEach(p => {
       const q = pos[p.id], tx = q.side ? q.x + r + 10 : q.x - r - 10;
       let pr = p.project; while (pr.length > 4 && measure(pr, fsL) > labW - 6) pr = pr.slice(0, -2).trim() + '…';
-      nd += '<g class="n a' + p.hue + (p.emoji ? ' em' : '') + '"><circle cx="' + q.x + '" cy="' + q.y.toFixed(1) + '" r="' + r.toFixed(1) + '"/><text class="ni" x="' + q.x + '" y="' + q.y.toFixed(1) + '" font-size="' + (r * (p.emoji ? 1.15 : .95)).toFixed(1) + '">' + esc(p.emoji || p.ini) + '</text>'
+      nd += '<g class="n a' + p.hue + (p.emoji ? ' em' : '') + '" data-p="' + p.id + '"><circle cx="' + q.x + '" cy="' + q.y.toFixed(1) + '" r="' + r.toFixed(1) + '"/><text class="ni" x="' + q.x + '" y="' + q.y.toFixed(1) + '" font-size="' + (r * (p.emoji ? 1.15 : .95)).toFixed(1) + '">' + esc(p.emoji || p.ini) + '</text>'
         + '<text class="np" text-anchor="' + (q.side ? 'start' : 'end') + '" x="' + tx.toFixed(1) + '" y="' + (q.y - (two ? fsL * .32 : 0)).toFixed(1) + '" font-size="' + fsL.toFixed(1) + '">' + esc(pr) + '</text>'
         + (two ? '<text class="nn" text-anchor="' + (q.side ? 'start' : 'end') + '" x="' + tx.toFixed(1) + '" y="' + (q.y + fsL * .78).toFixed(1) + '" font-size="' + (fsL * .78).toFixed(1) + '">' + esc(first(p.name)) + '</text>' : '') + '</g>';
     });
-    el.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="Proyectos unidos por las palabras que comparten">' + th + kn + nd + '</svg>';
+    return th + kn + nd;
   }
 
+  /* ---------- Recuerdo del taller ---------- */
+  // Una sola imagen con el telar y, debajo, todos los proyectos con sus palabras.
+  function keepsakeSvg(an) {
+    const FAMC = { personas: '#FF7D6E', bienestar: '#4FD6BC', creatividad: '#FF7FBE', territorio: '#FFC24A', conocimiento: '#72B8FF', proposito: '#B39BFF', propia: '#E9DDEB' };
+    const HUES = ['#FF7D6E', '#4FD6BC', '#FF7FBE', '#FFC24A', '#72B8FF', '#B39BFF'];
+    const SYS = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+    expFont = SYS;
+    const W = 1920, pad = 70, top = 230, LH = 1000, lw = W - pad * 2;
+    let b = '<g transform="translate(' + pad + ',' + top + ')">' + loomMarkup(an, lw, LH, true) + '</g>';
+    let y = top + LH + 110;
+    b += '<text x="' + pad + '" y="' + y + '" font-size="46" fill="#fff">Los proyectos del grupo</text>';
+    y += 56;
+    const cols = 3, gc = 24, cw = (lw - gc * (cols - 1)) / cols, px = 108, fs = 17;
+    for (let i = 0; i < an.ps.length; i += cols) {
+      const row = an.ps.slice(i, i + cols).map(p => {
+        let x = 0, line = 0; const pl = [];
+        p.keys.forEach(k => {
+          const lab = an.label[k], w = measure(lab, fs) + 28;
+          if (x && x + w > cw - px - 22) { x = 0; line++; }
+          pl.push({ lab: lab, fam: famOf(k), x: x, line: line, w: w }); x += w + 8;
+        });
+        return { p: p, pl: pl, h: 104 + (line + 1) * 40 + 14 };
+      });
+      const rh = Math.max.apply(null, row.map(r => r.h));
+      row.forEach((r, j) => {
+        const x = pad + j * (cw + gc), p = r.p;
+        let pr = p.project; while (pr.length > 4 && measure(pr, 27) > cw - px - 22) pr = pr.slice(0, -2).trim() + '…';
+        b += '<rect x="' + x + '" y="' + y + '" width="' + cw + '" height="' + rh + '" rx="28" fill="#fff" fill-opacity=".07"/>'
+          + '<g class="n a' + p.hue + (p.emoji ? ' em' : '') + '"><circle cx="' + (x + 56) + '" cy="' + (y + 58) + '" r="34"/><text class="ni" x="' + (x + 56) + '" y="' + (y + 58) + '" font-size="' + (p.emoji ? 38 : 32) + '">' + esc(p.emoji || p.ini) + '</text></g>'
+          + '<text x="' + (x + px) + '" y="' + (y + 44) + '" font-size="27" fill="#fff">' + esc(pr) + '</text>'
+          + '<text x="' + (x + px) + '" y="' + (y + 78) + '" font-size="19" fill="#D9C6DC" font-weight="500">de ' + esc(p.name) + '</text>'
+          + r.pl.map(q => '<g class="f-' + q.fam + '"><rect x="' + (x + px + q.x).toFixed(1) + '" y="' + (y + 104 + q.line * 40) + '" width="' + q.w.toFixed(1) + '" height="32" rx="16" fill="' + FAMC[q.fam] + '"/><text x="' + (x + px + q.x + q.w / 2).toFixed(1) + '" y="' + (y + 120 + q.line * 40) + '" font-size="' + fs + '" fill="#2B1533" text-anchor="middle">' + esc(q.lab) + '</text></g>').join('');
+      });
+      y += rh + gc;
+    }
+    expFont = '';
+    const H = Math.round(y + 50);
+    const date = new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+    const css = 'text{font-family:' + SYS.replace(/"/g, "'") + ';font-weight:700;dominant-baseline:central}'
+      + Object.keys(FAMC).map(f => '.f-' + f + '{--c:' + FAMC[f] + '}').join('') + HUES.map((c, i) => '.a' + i + '{--a:' + c + '}').join('')
+      + '.t{fill:none;stroke:var(--c);stroke-width:1.3;stroke-opacity:.42;stroke-linecap:round}.t.sh{stroke-width:2.6;stroke-opacity:.85}'
+      + '.k rect{fill:#2B1533;stroke:var(--c);stroke-width:1.2;stroke-opacity:.55}.k text{fill:var(--c);text-anchor:middle}.k.sh rect{fill:var(--c);stroke:none}.k.sh text{fill:#2B1533}'
+      + '.n circle{fill:var(--a)}.n.em circle{fill-opacity:.3;stroke:var(--a);stroke-width:1.5}.n .ni{fill:#2B1533;text-anchor:middle}.n.em .ni{font-weight:400}.n .np{fill:#fff}.n .nn{fill:#D9C6DC;font-weight:500}';
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '"><defs><style>' + css + '</style>'
+      + '<radialGradient id="g1" cx="0" cy="0" r=".8"><stop offset="0" stop-color="#5A2440"/><stop offset="1" stop-color="#5A2440" stop-opacity="0"/></radialGradient>'
+      + '<radialGradient id="g2" cx="1" cy="1" r=".8"><stop offset="0" stop-color="#3B2A6B"/><stop offset="1" stop-color="#3B2A6B" stop-opacity="0"/></radialGradient></defs>'
+      + '<rect width="' + W + '" height="' + H + '" fill="#2B1533"/><rect width="' + W + '" height="' + H + '" fill="url(#g1)"/><rect width="' + W + '" height="' + H + '" fill="url(#g2)"/>'
+      + '<g fill="none" stroke-width="6" stroke-linecap="round"><path stroke="#FF7D6E" d="M70 60C190 60 220 120 340 116S480 60 580 70"/><path stroke="#FFC24A" d="M70 116C180 120 250 58 360 62S500 116 580 108"/><path stroke="#B39BFF" d="M70 90C200 66 260 108 380 88S510 74 580 92"/></g>'
+      + '<text x="' + pad + '" y="178" font-size="110" fill="#fff" font-weight="800" letter-spacing="-4">Hilos</text>'
+      + '<text x="390" y="160" font-size="44" fill="#D9C6DC" font-weight="500">Lazos que nos unen</text>'
+      + '<text x="' + (W - pad) + '" y="150" font-size="34" fill="#fff" text-anchor="end">' + plural(an.ps.length) + ' en el telar</text>'
+      + '<text x="' + (W - pad) + '" y="192" font-size="24" fill="#D9C6DC" text-anchor="end" font-weight="500">' + esc(date) + '</text>'
+      + b + '</svg>';
+    return { svg: svg, w: W, h: H };
+  }
+  async function keepsake(btn) {
+    const an = analyse(); if (!an.ps.length) return toast('Todavía no hay proyectos.');
+    const old = btn.textContent; btn.disabled = true; btn.textContent = 'Preparando la imagen…';
+    try {
+      const k = keepsakeSvg(an), img = new Image();
+      await new Promise((ok, ko) => { img.onload = ok; img.onerror = ko; img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(k.svg); });
+      const sc = Math.min(1.5, Math.sqrt(12e6 / (k.w * k.h))), cv = document.createElement('canvas');
+      cv.width = Math.round(k.w * sc); cv.height = Math.round(k.h * sc);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      const blob = await new Promise(ok => cv.toBlob(ok, 'image/jpeg', .92));
+      if (!blob) throw new Error('sin imagen');
+      const name = 'hilos-recuerdo.jpg';
+      let shared = false;
+      try {
+        const file = new File([blob], name, { type: 'image/jpeg' });
+        if (/Android|iPhone|iPad/i.test(navigator.userAgent) && navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Hilos' }); shared = true; }
+      } catch (e) { if (e && e.name === 'AbortError') shared = true; }
+      if (!shared) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); toast('Imagen descargada.'); }
+    } catch (e) { toast('No se ha podido crear la imagen en este navegador. Prueba desde el ordenador.'); }
+    btn.disabled = false; btn.textContent = old;
+  }
+  function listText(an) {
+    return 'Hilos: los proyectos del grupo\n\n' + an.ps.map(p => (p.emoji ? p.emoji + ' ' : '') + p.project + ' (' + p.name + ')\n' + p.keys.map(k => an.label[k]).join(', ')).join('\n\n');
+  }
+  async function copyText(t) {
+    try { await navigator.clipboard.writeText(t); return true; } catch (e) { /* sin permiso: se intenta a la antigua */ }
+    try { const ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove(); return ok; } catch (e) { return false; }
+  }
+  // Parejas de palabras que se parecen mucho (misma raíz), para proponer juntarlas.
+  function similar(an) {
+    const out = [], ws = an.words;
+    for (let i = 0; i < ws.length; i++) for (let j = i + 1; j < ws.length; j++) {
+      const a = ws[i].k.replace(/ /g, ''), b = ws[j].k.replace(/ /g, '');
+      let c = 0; while (c < a.length && c < b.length && a[c] === b[c]) c++;
+      if (c >= 5 && c >= Math.min(a.length, b.length) * .6 && !(CONCEPT[ws[i].k] && CONCEPT[ws[j].k])) {
+        // se conserva la del catálogo o, si no, la más elegida
+        const keepI = (CONCEPT[ws[i].k] ? 1 : 0) - (CONCEPT[ws[j].k] ? 1 : 0) || ws[i].n - ws[j].n;
+        out.push(keepI >= 0 ? { from: ws[j], to: ws[i] } : { from: ws[i], to: ws[j] });
+      }
+    }
+    // una sola propuesta por palabra, primero las que van a una palabra del catálogo
+    out.sort((x, y) => (CONCEPT[y.to.k] ? 1 : 0) - (CONCEPT[x.to.k] ? 1 : 0));
+    const done = {};
+    return out.filter(x => !done[x.from.k] && (done[x.from.k] = 1)).slice(0, 6);
+  }
+
+  /* ---------- Ficha de una persona ---------- */
+  const sheetEl = $('#sheet');
+  function openPerson(id) {
+    const an = analyse(), p = an.ps.filter(x => x.id === id)[0]; if (!p) return;
+    const mine = an.ps.filter(x => x.id === me.id)[0];
+    let rel = '';
+    if (mine && mine.id !== p.id) {
+      const a = affinity(mine, p);
+      rel = a.shared.length ? '<p class="why">' + (a.shared.length === 1 ? 'Os une 1 hilo' : 'Os unen ' + a.shared.length + ' hilos') + '</p><div class="row">' + pills(a.shared, an) + '</div>'
+        : '<p class="why">Todavía no compartís palabras. Buen motivo para hablar.</p>';
+    }
+    sheetEl.innerHTML = '<div class="sheet-in" role="dialog" aria-modal="true" aria-label="' + esc(p.project) + '"><button class="x" aria-label="Cerrar">×</button>'
+      + '<span class="av a' + p.hue + (p.emoji ? ' em' : '') + ' xl">' + esc(p.emoji || p.ini) + '</span><h2>' + esc(p.project) + '</h2><p class="who">de ' + esc(p.name) + (mine && mine.id === p.id ? ' (tú)' : '') + '</p>'
+      + '<div class="row">' + pills(p.keys, an) + '</div>' + rel + '</div>';
+    sheetEl.hidden = false; $('.x', sheetEl).focus();
+  }
+  const closeSheet = () => { sheetEl.hidden = true; sheetEl.innerHTML = ''; };
+  sheetEl.addEventListener('click', e => { if (e.target === sheetEl || e.target.closest('.x')) closeSheet(); });
+  document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('[data-p]'); if (t && !sheetEl.contains(t)) openPerson(t.getAttribute('data-p')); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !sheetEl.hidden) closeSheet();
+    if (e.key === 'Enter' && e.target.matches && e.target.matches('[data-p]')) openPerson(e.target.getAttribute('data-p'));
+  });
+
   /* ---------- Control de la anfitriona ---------- */
+  let mgFrom = '', mgTo = '';
+  function mergeBox(an) {
+    const sug = similar(an), opts = an.words.slice().sort((a, b) => a.label.localeCompare(b.label, 'es'));
+    const sel = (id, v, ph) => '<select class="input" id="' + id + '"><option value="">' + ph + '</option>' + opts.map(w => '<option value="' + esc(w.k) + '"' + (w.k === v ? ' selected' : '') + '>' + esc(w.label) + '</option>').join('') + '</select>';
+    return '<details class="planb" id="d3"' + (sug.length ? ' open' : '') + '><summary>Juntar palabras parecidas' + (sug.length ? ' (' + sug.length + (sug.length === 1 ? ' sugerencia)' : ' sugerencias)') : '') + '</summary>'
+      + '<p class="hint">Si dos palabras quieren decir lo mismo, júntalas para que cuenten como un solo nudo.</p>'
+      + sug.map(x => '<div class="mrow"><span><b>' + esc(x.from.label) + '</b> pasa a ser <b>' + esc(x.to.label) + '</b></span><button class="btn small" data-mf="' + esc(x.from.k) + '" data-mt="' + esc(x.to.label) + '">Juntar</button></div>').join('')
+      + '<div class="mform">' + sel('mf', mgFrom, 'Esta palabra…') + sel('mt', mgTo, '…pasa a ser esta') + '<button class="btn small" id="mgo">Juntar</button></div>'
+      + (an.merges.length ? '<p class="hint">Ya juntadas</p>' + an.merges.map(m => '<div class="mrow"><span><b>' + esc(cap(m.from)) + '</b> cuenta como <b>' + esc(m.to) + '</b></span><button class="linkbtn" data-un="' + esc(m.from) + '">Separar</button></div>').join('') : '')
+      + '</details>';
+  }
   function viewControl() {
     if (!pin) {
       app.innerHTML = '<main class="wrap hola"><h1 class="h1s">Control</h1><p class="lead">Escribe el código de la anfitriona.</p>'
@@ -395,17 +542,40 @@
       + '<details class="planb" id="d1"><summary>Sin proyector: enseñar el código desde aquí</summary><div class="qr">' + qrSvg(joinUrl()) + '</div><p class="url">' + esc(shortUrl()) + '</p></details>'
       + '<h2 class="sub">Lo que une al grupo</h2>' + (an.ps.length ? knots(an) : '<p class="empty">Nadie ha entrado todavía.</p>')
       + (an.ps.length && an.unused.length ? '<details class="planb" id="d2"><summary>Conceptos que nadie ha elegido</summary><p class="unused">' + an.unused.map(esc).join(', ') + '</p></details>' : '')
+      + (an.ps.length ? mergeBox(an) + '<h2 class="sub">Recuerdo del taller</h2><p class="lead small">Para compartir con el grupo cuando terminéis.</p>'
+        + '<button class="btn ghost" id="keep">Descargar la imagen del telar y los proyectos</button><button class="btn ghost" id="copy">Copiar la lista de proyectos</button>' : '')
       + '<h2 class="sub">Participantes</h2>' + (an.ps.length ? '<ul class="dir">' + an.ps.map(p =>
         '<li>' + avatar(p, 'lg') + '<div><strong>' + esc(p.project) + '</strong><span>de ' + esc(p.name) + '</span><div class="row">' + pills(p.keys, an) + '</div><button class="linkbtn danger" data-del="' + p.id + '">Quitar</button></div></li>').join('') + '</ul>' : '<p class="empty">Nadie ha entrado todavía.</p>')
       + '<button class="linkbtn danger" id="reset">Vaciar todo y empezar de cero</button></main>';
-    const y = window.scrollY, o1 = $('#d1') && $('#d1').open, o2 = $('#d2') && $('#d2').open;
-    app.innerHTML = h; window.scrollTo(0, y); if (o1) $('#d1').open = true; if (o2 && $('#d2')) $('#d2').open = true;
+    const y = window.scrollY, open = ['d1', 'd2', 'd3'].filter(i => $('#' + i) && $('#' + i).open);
+    app.innerHTML = h; window.scrollTo(0, y); open.forEach(i => { if ($('#' + i)) $('#' + i).open = true; });
     const act = async (fn, body) => {
       try { const ok = await rpc(fn, Object.assign({ p_pin: pin }, body)); if (!ok) { pin = ''; toast('El código ya no es válido.'); } await refresh(true); }
       catch (e) { toast('No hay conexión. Inténtalo de nuevo.'); }
     };
     $('#ph').onclick = () => act('tl_set_phase', { p_phase: af ? 'palabras' : 'afinidades' });
-    $('#reset').onclick = () => { if (confirm('Se borrarán todos los proyectos y palabras. ¿Vaciar todo?')) act('tl_reset', {}); };
+    $('#reset').onclick = async () => {
+      if (!confirm('Se borrarán todos los proyectos y palabras. ¿Vaciar todo?')) return;
+      try { for (const m of an.merges) await rpc('tl_merge', { p_pin: pin, p_from: m.from, p_to: '' }); } catch (e) { /* se vacía igualmente */ }
+      act('tl_reset', {});
+    };
+    const merge = async (from, to) => {
+      try { await rpc('tl_merge', { p_pin: pin, p_from: from, p_to: to }); await refresh(true); }
+      catch (e) { toast('No hay conexión. Inténtalo de nuevo.'); }
+    };
+    app.querySelectorAll('[data-mf]').forEach(b => b.onclick = () => merge(b.dataset.mf, b.dataset.mt));
+    app.querySelectorAll('[data-un]').forEach(b => b.onclick = () => merge(b.dataset.un, ''));
+    const mf = $('#mf'), mt = $('#mt');
+    if (mf) {
+      mf.onchange = () => { mgFrom = mf.value; }; mt.onchange = () => { mgTo = mt.value; };
+      $('#mgo').onclick = () => {
+        if (!mf.value || !mt.value) return toast('Elige las dos palabras.');
+        if (mf.value === mt.value) return toast('Son la misma palabra.');
+        const to = an.label[mt.value]; mgFrom = mgTo = ''; merge(mf.value, to);
+      };
+    }
+    const kp = $('#keep'); if (kp) kp.onclick = () => keepsake(kp);
+    const cp = $('#copy'); if (cp) cp.onclick = async () => toast(await copyText(listText(an)) ? 'Lista copiada. Pégala donde quieras.' : 'No se ha podido copiar en este navegador.');
     app.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { if (confirm('¿Quitar este proyecto?')) act('tl_remove', { p_id: b.dataset.del }); });
   }
 
